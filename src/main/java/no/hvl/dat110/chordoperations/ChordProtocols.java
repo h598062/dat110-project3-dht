@@ -6,9 +6,11 @@ package no.hvl.dat110.chordoperations;
 import java.math.BigInteger;
 import java.rmi.RemoteException;
 import java.rmi.registry.Registry;
+import java.util.List;
 import java.util.Set;
 import java.util.Timer;
 
+import no.hvl.dat110.util.Hash;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -171,6 +173,21 @@ public class ChordProtocols {
 			// then: use chordnode to find the successor of k. (i.e., succnode = chordnode.findSuccessor(k))
 			
 			// check that succnode is not null, then add it to the finger table
+
+			List<NodeInterface> ft = chordnode.getFingerTable();
+			ft.clear();
+			BigInteger m = Hash.addressSize();
+			int numbits = Hash.bitSize();
+			BigInteger n = chordnode.getNodeID();
+			for(int i = 0; i < numbits; i++) {
+				BigInteger k = n.add((BigInteger.valueOf(2)).pow(i)).mod( m);
+				NodeInterface succnode = chordnode.findSuccessor(k);
+				if(succnode != null) {
+					ft.add(succnode);
+				}
+			}
+
+
 
 		} catch (RemoteException e) {
 			//

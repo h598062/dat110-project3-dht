@@ -65,6 +65,10 @@ public class FileManager {
 		// hash the replica
 		
 		// store the hash in the replicafiles array.
+
+		for (int i = 0; i < numReplicas; i++) {
+			replicafiles[i] = Hash.hashOf(filename+i);
+		}
 	}
 	
     /**
@@ -97,6 +101,14 @@ public class FileManager {
     	// call the saveFileContent() on the successor and set isPrimary=true if logic above is true otherwise set isPrimary=false
     	
     	// increment counter
+
+		createReplicaFiles();
+		for (BigInteger rf : replicafiles) {
+			NodeInterface succ = chordnode.findSuccessor(rf);
+			succ.addKey(rf);
+			succ.saveFileContent(filename, rf, bytesOfFile, counter == index);
+			counter++;
+		}
 		return counter;
     }
 	
@@ -122,7 +134,14 @@ public class FileManager {
 		// get the metadata (Message) of the replica from the successor (i.e., active peer) of the file
 		
 		// save the metadata in the set activeNodesforFile.
-		
+
+		createReplicaFiles();
+		for (BigInteger rf : replicafiles) {
+			NodeInterface succ = chordnode.findSuccessor(rf);
+			Message message = succ.getFilesMetadata().get(rf);
+			activeNodesforFile.add(message);
+		}
+
 		return activeNodesforFile;
 	}
 	
@@ -141,7 +160,13 @@ public class FileManager {
 		// use the primaryServer boolean variable contained in the Message class to check if it is the primary or not
 		
 		// return the primary when found (i.e., use Util.getProcessStub to get the stub and return it)
-		
+
+		for (Message message : activeNodesforFile) {
+			if (message.isPrimaryServer()) {
+				return Util.getProcessStub(message.getNodeName(), message.getPort());
+			}
+		}
+
 		return null; 
 	}
 	
