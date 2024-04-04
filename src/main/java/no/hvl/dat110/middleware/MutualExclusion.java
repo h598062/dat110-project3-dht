@@ -67,11 +67,11 @@ public class MutualExclusion {
 		// start MutualExclusion algorithm
 
 		// first, call removeDuplicatePeersBeforeVoting. A peer can hold/contain 2 replicas of a file. This peer will appear twice
-		removeDuplicatePeersBeforeVoting();
+		List<Message> dups = removeDuplicatePeersBeforeVoting();
 		// multicast the message to activenodes (hint: use multicastMessage)
-		multicastMessage(message, List.copyOf(node.activenodesforfile));
+		multicastMessage(message, dups);
 		// check that all replicas have replied (permission) - areAllMessagesReturned(int numvoters)?
-		if (areAllMessagesReturned(node.activenodesforfile.size())) {
+		if (areAllMessagesReturned(dups.size())) {
 			// if yes, acquireLock
 			acquireLock();
 			// send the updates to all replicas by calling node.broadcastUpdatetoPeers
@@ -110,22 +110,23 @@ public class MutualExclusion {
 		clock.increment();
 		// if message is from self, acknowledge, and call onMutexAcknowledgementReceived()
 		if (message.getNodeName().equals(node.nodename)) {
-			message.setAcknowledged(true);
+			//message.setAcknowledged(true);
+			queueack.add(message);
 			onMutexAcknowledgementReceived(message);
 			return;
 		}
-		int caseid = -1;
+		int caseid = 0;
 		/* write if statement to transition to the correct caseid in the doDecisionAlgorithm */
-		if (!CS_BUSY) {
+		if (!WANTS_TO_ENTER_CS && !CS_BUSY) {
 			// caseid=0: Receiver is not accessing shared resource and does not want to (send OK to sender)
 			caseid = 0; // no critical section, available to enter CS
-		} else {
+		} else if(CS_BUSY) {
 			// caseid=1: Receiver already has access to the resource (dont reply but queue the request)
 			caseid = 1; // receiver in CS
 		}
 		// caseid=2: Receiver wants to access resource but is yet to - compare own message clock to received message's clock
-		if (WANTS_TO_ENTER_CS && (message.getClock() > clock.getClock() || (message.getClock() == clock.getClock()
-				&& message.getNodeName().compareTo(node.nodename) > 0))) {
+		else if (WANTS_TO_ENTER_CS /*&& (message.getClock() > clock.getClock() || (message.getClock() == clock.getClock()
+				&& message.getNodeName().compareTo(node.nodename) > 0))*/) {
 			caseid = 2;
 		}
 
@@ -156,7 +157,7 @@ public class MutualExclusion {
 
 				stub.onMutexAcknowledgementReceived(message);
 
-				break;
+
 			}
 
 			/** case 2: Receiver already has access to the resource (dont reply but queue the request) */
@@ -188,13 +189,13 @@ public class MutualExclusion {
 				// if sender looses, queue it
 
 				Integer senderClock = message.getClock();
-				Integer ownClock = clock.getClock();
+				Integer receiverClock = node.getMessage().getClock();
 
-				if (senderClock < ownClock || (Objects.equals(senderClock, ownClock) && senderClock.compareTo(ownClock) < 0)) {
-					message.setAcknowledged(true);
+				if (senderClock < receiverClock || (Objects.equals(senderClock, receiverClock) && procName.compareTo(node.getNodeName()) < 0)) {
 
 					NodeInterface stub = Util.getProcessStub(procName, port);
 					if (stub == null) break;
+					message.setAcknowledged(true);
 					stub.onMutexAcknowledgementReceived(message);
 				} else {
 					queue.add(message);
